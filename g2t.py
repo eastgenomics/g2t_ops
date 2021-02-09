@@ -1,10 +1,26 @@
 import argparse
 from collections import defaultdict
+import datetime
 import gzip
+import os
+import regex
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql.schema import MetaData
+import xlrd
+
+from hgnc_queries import get_id as hq_get_id
+
+
+def get_date():
+    """ Return today's date in YYMMDD format
+
+    Returns:
+        str: Date
+    """
+
+    return str(datetime.date.today())[2:].replace("-", "")
 
 
 def connect_to_db(user: str, passwd: str, host: str, database: str):
@@ -177,7 +193,9 @@ def get_nirvana_data_dict(
 
             if record_type == "gene":
                 if "ensembl_gene_id" in info_dict:
-                    hgnc_id = find_id_using_ensg(info_dict["ensembl_gene_id"], hgnc_data)
+                    hgnc_id = find_id_using_ensg(
+                        info_dict["ensembl_gene_id"], hgnc_data
+                    )
 
                     if hgnc_id is None:
                         hgnc_id, ensg_id = assign_ids_to_symbol(
@@ -311,7 +329,7 @@ def assign_transcript(
         # firstly get the various matches
         final_check = [transcript_data[tx]["match"] for tx in transcript_data]
 
-        # if not exact match, find partial or canonical matches 
+        # if not exact match, find partial or canonical matches
         if "exact" not in final_check:
             if "partial" in final_check:
                 clinical_transcript = [
@@ -354,38 +372,228 @@ def get_header_index(header_name: str, headers: list):
     ][0]
 
 
-def main(args):
-    with open(args.gene_file) as f:
-        genes = f.read().splitlines()
+def parse_test_directory(file: str):
+    """ Parse the data in the National test directory
 
-    hgnc_data, symbol_dict, alias_dict, prev_dict = parse_hgnc_dump(args.hgnc)
-    transcript_data = get_nirvana_data_dict(
-        args.gff, hgnc_data, symbol_dict, alias_dict, prev_dict
-    )
+    Args:
+        file (str): XLS of the National test directory
 
-    session, meta = connect_to_db(
-        "hgmd_ro", "hgmdreadonly", "localhost", "hgmd_2020_3"
-    )
+    Returns:
+        tuple: Dict of clin_ind_id2clin_ind and dict of test_id2targets
+    """
 
-    for gene in genes:
-        hgnc_id, ensg_id = assign_ids_to_symbol(
-            gene, symbol_dict, alias_dict, prev_dict
+    clinind_data = defaultdict(lambda: defaultdict(str))
+
+    xls = xlrd.open_workbook(file)
+    sheet_with_tests = xls.sheet_by_name("R&ID indications")
+
+    ci_dict = {}
+
+    for row in range(sheet_with_tests.nrows):
+        if row >= 2:
+            (
+                ci_id, ci, criteria, test_code,
+                targets, method, clinical_group, comment
+            ) = sheet_with_tests.row_values(row)
+
+            if ci != "" and ci_id != "":
+                ci_dict[ci_id] = ci
+            else:
+                ci_id, code = test_code.split(".")
+                ci = ci_dict[ci_id]
+
+            test_code = test_code.strip()
+
+            if "panel" in method or "WES" in method or "Single gene" in method:
+                clinind_data[test_code]["targets"] = targets.strip()
+                clinind_data[test_code]["method"] = method.strip()
+                clinind_data[test_code]["name"] = ci.strip()
+                clinind_data[test_code]["version"] = file
+
+    return clinind_data
+
+
+def clean_targets(clinind_data: dict):
+    """ Replace the methods from the XLS to abbreviation:
+    WES and co -> P
+    Panel -> P
+    Single Gene -> G
+
+    Args:
+        clinind_data (dict): Dict of data from the test directory
+
+    Returns:
+        dict: Dict of dict for test2targets
+    """
+
+    clean_clinind_data = defaultdict(lambda: defaultdict(list))
+
+    ci_to_remove = []
+
+    for test_code in clinind_data:
+        data = clinind_data[test_code]
+        clinind = data["name"]
+        targets = data["targets"]
+        method = data["method"]
+        version = data["version"]
+
+        clean_clinind_data[test_code]["name"] = clinind
+        clean_clinind_data[test_code]["version"] = version
+
+        if "WES" in method:
+            clean_clinind_data[test_code]["method"] = "P"
+
+        elif "panel" in method:
+            match = regex.search(r"(.*)[pP]anel", method)
+            type_panel = match.groups()[0][0]
+            clean_clinind_data[test_code]["method"] = f"{type_panel}P"
+
+        elif "gene" in method:
+            clean_clinind_data[test_code]["method"] = "G"
+
+        cleaned_method = clean_clinind_data[test_code]["method"]
+
+        clean_clinind_data[test_code]["gemini_name"] = (
+            f"{test_code}_{clinind}_{cleaned_method}"
         )
-        tx_data, clinical_transcript = assign_transcript(
-            session, meta, hgnc_id, transcript_data
+
+        for indiv_target in targets.split(";"):
+            indiv_target = indiv_target.strip()
+
+            if "Relevant" not in indiv_target:
+                # Panels can have "As dictated by blabla" "As indicated by"
+                # so I remove those
+                if indiv_target.startswith("As "):
+                    ci_to_remove.append(test_code)
+
+                # check if the target has parentheses with numbers in there
+                match = regex.search(r"(?P<panel_id>\(\d+\))", indiv_target)
+
+                # it's a panel, parentheses detected, really reliable
+                if match:
+                    target_to_add = match.group("panel_id").strip("()")
+                    clean_clinind_data[test_code]["panels"].append(
+                        target_to_add
+                    )
+
+                # it's a single gene
+                else:
+                    target_to_add = hq_get_id(
+                        indiv_target.strip(), verbose=False
+                    )
+
+                    if target_to_add is not None:
+                        clean_clinind_data[test_code]["genes"].append(
+                            target_to_add
+                        )
+                    else:
+                        # only case where this happens is a
+                        # As dictated by clinical indication case
+                        ci_to_remove.append(test_code)
+            else:
+                ci_to_remove.append(test_code)
+
+        # convert default dict to dict because accessing absent key later on
+        # will create the key with a list as default breaking what I'm doing
+        # later
+        clean_clinind_data[test_code] = dict(clean_clinind_data[test_code])
+
+    # remove the clinical indication that have the Relevant panel/gene text
+    for key in ci_to_remove:
+        clean_clinind_data.pop(key, None)
+
+    return clean_clinind_data
+
+
+def gather_single_genes(clin_ind2targets: dict):
+    """ Return list of all single genes tests
+
+    Args:
+        clin_ind2targets (dict): Dict of clinical indications
+
+    Returns:
+        list: List of single genes used in clinical indications
+    """
+
+    single_genes = []
+
+    for test_code in clin_ind2targets:
+        if "genes" in clin_ind2targets[test_code]:
+            genes = clin_ind2targets[test_code]["genes"]
+            single_genes += genes
+
+    return single_genes
+
+
+def main(**args):
+    if args["command"] == "g2t":
+        with open(args["gene_file"]) as f:
+            genes = f.read().splitlines()
+
+        hgnc_data, symbol_dict, alias_dict, prev_dict = parse_hgnc_dump(
+            args["hgnc"]
+        )
+        transcript_data = get_nirvana_data_dict(
+            args["gff"], hgnc_data, symbol_dict, alias_dict, prev_dict
         )
 
-        print(f"{gene}\t{clinical_transcript}")
+        session, meta = connect_to_db(
+            "hgmd_ro", "hgmdreadonly", "localhost", "hgmd_2020_3"
+        )
 
-        # for tx in data:
-        #     print(f"{gene}\t{tx}\t{data[tx]['match']}")
+        with open(f"{get_date()}_g2t.tsv", "w") as f:
+            for gene in genes:
+                if not gene.startswith("HGNC:"):
+                    hgnc_id, ensg_id = assign_ids_to_symbol(
+                        gene, symbol_dict, alias_dict, prev_dict
+                    )
+                else:
+                    hgnc_id = gene
+
+                tx_data, clinical_transcript = assign_transcript(
+                    session, meta, hgnc_id, transcript_data
+                )
+
+                f.write(f"{hgnc_id}\t{clinical_transcript}\n")
+
+    elif args["command"] == "genes":
+        genes = set()
+
+        for file in os.listdir(args["gene_folder"]):
+            if "superpanel" not in file:
+                with open(f"{args['gene_folder']}/{file}") as f:
+                    for line in f:
+                        line = line.strip().split("\t")
+
+                        if line[4] == "gene":
+                            genes.add(line[-1])
+
+        clinind_data = parse_test_directory(args["test_directory"])
+        clean_clinind_data = clean_targets(clinind_data)
+
+        # get the single genes in the test directory
+        single_genes = gather_single_genes(clean_clinind_data)
+
+        for gene in single_genes:
+            genes.add(gene)
+
+        with open(f"{get_date()}_genes", "w") as f:
+            for gene in genes:
+                f.write(f"{gene}\n")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("gene_file", help="Gene file")
-    parser.add_argument("--hgnc", help="HGNC dump")
-    parser.add_argument("--gff", help="Nirvana gff")
+    subparser = parser.add_subparsers(dest="command")
 
-    args = parser.parse_args()
-    main(args)
+    gene_file = subparser.add_parser("genes")
+    gene_file.add_argument("gene_folder", help="Gene file")
+    gene_file.add_argument("test_directory", help="National test directory")
+
+    g2t = subparser.add_parser("g2t")
+    g2t.add_argument("gene_file", help="Gene file")
+    g2t.add_argument("hgnc", help="HGNC dump")
+    g2t.add_argument("gff", help="Nirvana gff")
+
+    args = vars(parser.parse_args())
+    main(**args)
