@@ -3,6 +3,7 @@ from collections import defaultdict
 import datetime
 import gzip
 import os
+from pathlib import Path
 import regex
 
 from sqlalchemy import create_engine
@@ -525,6 +526,36 @@ def gather_single_genes(clin_ind2targets: dict):
     return single_genes
 
 
+def get_new_output_folder(output_dump: str, output_suffix: str = ""):
+    """ Return new folder to output files in
+
+    Args:
+        output_dump (str): Type of output folder
+        output_suffix (str, optional): Suffix to be added to subfolder. Defaults to "".
+
+    Returns:
+        str: Folder path to the final output
+    """
+
+    output_date = get_date()
+    output_index = 1
+
+    output_folder = f"{output_dump}/{output_date}-{output_index}"
+
+    if output_suffix:
+        output_folder = f"{output_folder}_{output_suffix}"
+
+    # don't want to overwrite files so create folders using the output index
+    while Path(output_folder).is_dir():
+        output_index += 1
+        output_folder = f"{output_dump}/{output_date}-{output_index}"
+
+        if output_suffix:
+            output_folder = f"{output_folder}_{output_suffix}"
+
+    return output_folder
+
+
 def main(**args):
     if args["command"] == "g2t":
         with open(args["gene_file"]) as f:
@@ -541,7 +572,10 @@ def main(**args):
             "hgmd_ro", "hgmdreadonly", "localhost", "hgmd_2020_3"
         )
 
-        with open(f"{get_date()}_g2t.tsv", "w") as f:
+        folder = get_new_output_folder("genes2transcripts")
+        Path(folder).mkdir(parents=True)
+
+        with open(f"{folder}/{get_date()}_g2t.tsv", "w") as f:
             for gene in genes:
                 if not gene.startswith("HGNC:"):
                     hgnc_id, ensg_id = assign_ids_to_symbol(
@@ -556,17 +590,20 @@ def main(**args):
 
                 f.write(f"{hgnc_id}\t{clinical_transcript}\n")
 
-    elif args["command"] == "genes":
+        print(f"Written file is '{folder}/{get_date()}_g2t.tsv'")
+
+    elif args["command"] == "gene_list":
         genes = set()
 
-        for file in os.listdir(args["gene_folder"]):
-            if "superpanel" not in file:
-                with open(f"{args['gene_folder']}/{file}") as f:
-                    for line in f:
-                        line = line.strip().split("\t")
+        for folder in args["panel_folder"]:
+            for file in os.listdir(folder):
+                if "superpanel" not in file:
+                    with open(f"{folder}/{file}") as f:
+                        for line in f:
+                            line = line.strip().split("\t")
 
-                        if line[4] == "gene":
-                            genes.add(line[-1])
+                            if line[4] == "gene":
+                                genes.add(line[-1])
 
         clinind_data = parse_test_directory(args["test_directory"])
         clean_clinind_data = clean_targets(clinind_data)
@@ -577,20 +614,34 @@ def main(**args):
         for gene in single_genes:
             genes.add(gene)
 
-        with open(f"{get_date()}_genes", "w") as f:
+        folder = get_new_output_folder("gene_list")
+        Path(folder).mkdir(parents=True)
+
+        with open(f"{folder}/{get_date()}_genes", "w") as f:
             for gene in genes:
                 f.write(f"{gene}\n")
+
+        print(f"Written file is '{folder}/{get_date()}_genes.tsv'")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     subparser = parser.add_subparsers(dest="command")
 
-    gene_file = subparser.add_parser("genes")
-    gene_file.add_argument("gene_folder", help="Gene file")
+    gene_file = subparser.add_parser(
+        "gene_list", help=(
+            "Generate file containing the hgnc ids of every gene in the "
+            "panel folder given and in the test directory"
+        )
+    )
+    gene_file.add_argument(
+        "panel_folder", nargs="+", help=(
+            "Folder containing the panel files to get all the genes"
+        )
+    )
     gene_file.add_argument("test_directory", help="National test directory")
 
-    g2t = subparser.add_parser("g2t")
+    g2t = subparser.add_parser("g2t", help="Generate genes2transcripts file")
     g2t.add_argument("gene_file", help="Gene file")
     g2t.add_argument("hgnc", help="HGNC dump")
     g2t.add_argument("gff", help="Nirvana gff")
