@@ -140,7 +140,15 @@ def parse_hgnc_dump(hgnc_file: str):
     return data, symbol_dict, alias_dict, prev_dict
 
 
-def find_id_using_ensg(ensg_id, hgnc_data):
+def find_id_using_ensg(ensg_id: str, hgnc_data: dict):
+    """ Find HGNC id using the ENSG id
+    Args:
+        ensg_id (str): ENSG id
+        hgnc_data (dict): Dict of HGNC data from HGNC dump
+    Returns:
+        str: HGNC id
+    """
+
     for hgnc_id in hgnc_data:
         if ensg_id == hgnc_data[hgnc_id]["ext_ensembl_id"]:
             return hgnc_id
@@ -154,7 +162,7 @@ def get_nirvana_data_dict(
 ):
     """ Return dict of parsed data for Nirvana
     Args:
-        nirvana_refseq (str): GFF file for nirvana
+        nirvana_refseq (str): GFF filepath for nirvana
         hgnc_data (dict): Dict of HGNC data
         alias_data (dict): Dict of alias HGNC data
         prev_data (dict): Dict of previous symbol HGNC data
@@ -333,11 +341,23 @@ def assign_transcript(
         # if not exact match, find partial or canonical matches
         if "exact" not in final_check:
             if "partial" in final_check:
-                clinical_transcript = [
+                partial_match_txs = [
                     tx
                     for tx in transcript_data
                     if transcript_data[tx]["match"] == "partial"
-                ][0]
+                ]
+
+                if len(partial_match_txs) > 1:
+                    max_version = max(
+                        [tx.split(".")[1]for tx in partial_match_txs]
+                    )
+                    clinical_transcript = [
+                        tx
+                        for tx in partial_match_txs
+                        if tx.split(".")[1] == max_version
+                    ][0]
+                else:
+                    clinical_transcript = partial_match_txs[0]
             elif "canonical" in final_check:
                 clinical_transcript = [
                     tx
@@ -366,11 +386,7 @@ def get_header_index(header_name: str, headers: list):
         int: Index for given header name
     """
 
-    return [
-        i
-        for i, ele in enumerate(headers)
-        if ele == header_name
-    ][0]
+    return headers.index(header_name)
 
 
 def parse_test_directory(file: str):
@@ -416,7 +432,7 @@ def parse_test_directory(file: str):
 
 def clean_targets(clinind_data: dict):
     """ Replace the methods from the XLS to abbreviation:
-    WES and co -> P
+    WES -> P
     Panel -> P
     Single Gene -> G
 
@@ -569,7 +585,7 @@ def main(**args):
         )
 
         session, meta = connect_to_db(
-            "hgmd_ro", "hgmdreadonly", "localhost", "hgmd_2020_3"
+            "hgmd_ro", "hgmdreadonly", "localhost", args["database"]
         )
 
         folder = get_new_output_folder("genes2transcripts")
@@ -640,6 +656,7 @@ if __name__ == "__main__":
         )
     )
     gene_file.add_argument("test_directory", help="National test directory")
+    gene_file.add_argument("database", help="HGMD database to connect to")
 
     g2t = subparser.add_parser("g2t", help="Generate genes2transcripts file")
     g2t.add_argument("gene_file", help="Gene file")
