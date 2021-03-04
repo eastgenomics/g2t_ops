@@ -256,6 +256,20 @@ def assign_ids_to_symbol(
     hgnc_id = None
     ensg_id = None
 
+    all_symbols = (
+        list(hgnc_data.keys()) + list(alias_data.keys()) +
+        list(prev_data.keys())
+    )
+
+    amount_symbol_in_data = len([
+        symbol
+        for symbol in all_symbols
+        if symbol.upper() == gene_symbol.upper()
+    ])
+
+    if amount_symbol_in_data > 1:
+        return f"{gene_symbol}_hgnc_id_TBD", f"{gene_symbol}_ensg_id_TBD"
+
     if gene_symbol in hgnc_data:
         hgnc_id = hgnc_data[gene_symbol]["hgnc_id"]
         ensg_id = hgnc_data[gene_symbol]["ensg_id"]
@@ -597,6 +611,13 @@ def main(**args):
                     hgnc_id, ensg_id = assign_ids_to_symbol(
                         gene, symbol_dict, alias_dict, prev_dict
                     )
+
+                    if hgnc_id.endswith("TBD"):
+                        print((
+                            f"{gene} has hgnc ids in multiple sources in HGNC "
+                            "(main, alias, previous symbols)"
+                        ))
+                        f.write(f"{gene}\t\n")
                 else:
                     hgnc_id = gene
 
@@ -656,12 +677,12 @@ if __name__ == "__main__":
         )
     )
     gene_file.add_argument("test_directory", help="National test directory")
-    gene_file.add_argument("database", help="HGMD database to connect to")
 
     g2t = subparser.add_parser("g2t", help="Generate genes2transcripts file")
     g2t.add_argument("gene_file", help="Gene file")
     g2t.add_argument("hgnc", help="HGNC dump")
     g2t.add_argument("gff", help="Nirvana gff")
+    g2t.add_argument("database", help="HGMD database to connect to")
 
     args = vars(parser.parse_args())
     main(**args)
