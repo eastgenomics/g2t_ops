@@ -19,8 +19,8 @@ GRANT SELECT ON hgmd_2020_3 . * TO 'hgmd_ro'@'localhost';
 
 ```bash
 # Generate gene file
-python g2t.py gene_list ${panel_folder} ${test_directory_xls} ${hgmd_database_name}
+python g2t.py gene_list ${panel_folder} ${test_directory_xls}
 
 # Generate g2t file from the gene file previously generated
-python g2t.py g2t ${gene_file} ${hgnc_file} ${gff}
+python g2t.py g2t ${gene_file} ${hgnc_file} ${gff} ${hgmd_database_name}
 ```
