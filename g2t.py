@@ -157,8 +157,8 @@ def find_id_using_ensg(ensg_id: str, hgnc_data: dict):
 
 
 def get_nirvana_data_dict(
-    nirvana_gff: str, hgnc_data: dict, symbol_data: dict, alias_data: dict,
-    prev_data: dict
+    nirvana_gff: str, all_symbols: list, hgnc_data: dict, symbol_data: dict,
+    alias_data: dict, prev_data: dict
 ):
     """ Return dict of parsed data for Nirvana
     Args:
@@ -208,11 +208,13 @@ def get_nirvana_data_dict(
 
                     if hgnc_id is None:
                         hgnc_id, ensg_id = assign_ids_to_symbol(
-                            gff_gene_name, symbol_data, alias_data, prev_data
+                            gff_gene_name, all_symbols, symbol_data,
+                            alias_data, prev_data
                         )
                 else:
                     hgnc_id, ensg_id = assign_ids_to_symbol(
-                        gff_gene_name, symbol_data, alias_data, prev_data
+                        gff_gene_name, all_symbols, symbol_data,
+                        alias_data, prev_data
                     )
 
                 if hgnc_id is None:
@@ -239,7 +241,8 @@ def get_nirvana_data_dict(
 
 
 def assign_ids_to_symbol(
-    gene_symbol: str, hgnc_data: dict, alias_data: dict, prev_data: dict
+    gene_symbol: str, all_symbols: list, hgnc_data: dict, alias_data: dict,
+    prev_data: dict
 ):
     """ Get the hgnc and ensg ids from a gene symbol
 
@@ -255,11 +258,6 @@ def assign_ids_to_symbol(
 
     hgnc_id = None
     ensg_id = None
-
-    all_symbols = (
-        list(hgnc_data.keys()) + list(alias_data.keys()) +
-        list(prev_data.keys())
-    )
 
     amount_symbol_in_data = len([
         symbol
@@ -556,7 +554,7 @@ def gather_single_genes(clin_ind2targets: dict):
     return single_genes
 
 
-def get_new_output_folder(output_dump: str, output_suffix: str = ""):
+def write_new_output_folder(output_dump: str, output_suffix: str = ""):
     """ Return new folder to output files in
 
     Args:
@@ -583,33 +581,43 @@ def get_new_output_folder(output_dump: str, output_suffix: str = ""):
         if output_suffix:
             output_folder = f"{output_folder}_{output_suffix}"
 
+    Path(output_folder).mkdir(parents=True)
+
     return output_folder
 
 
 def main(**args):
     if args["command"] == "g2t":
+        print("Parsing and processing data")
+
         with open(args["gene_file"]) as f:
             genes = f.read().splitlines()
 
         hgnc_data, symbol_dict, alias_dict, prev_dict = parse_hgnc_dump(
             args["hgnc"]
         )
+        all_symbols = (
+            list(symbol_dict.keys()) + list(alias_dict.keys()) +
+            list(prev_dict.keys())
+        )
+
         transcript_data = get_nirvana_data_dict(
-            args["gff"], hgnc_data, symbol_dict, alias_dict, prev_dict
+            args["gff"], all_symbols, hgnc_data, symbol_dict, alias_dict,
+            prev_dict
         )
 
         session, meta = connect_to_db(
             "hgmd_ro", "hgmdreadonly", "localhost", args["database"]
         )
 
-        folder = get_new_output_folder("genes2transcripts")
-        Path(folder).mkdir(parents=True)
+        folder = write_new_output_folder("genes2transcripts")
+        print("Writing output file")
 
         with open(f"{folder}/{get_date()}_g2t.tsv", "w") as f:
             for gene in genes:
                 if not gene.startswith("HGNC:"):
                     hgnc_id, ensg_id = assign_ids_to_symbol(
-                        gene, symbol_dict, alias_dict, prev_dict
+                        gene, all_symbols, symbol_dict, alias_dict, prev_dict
                     )
 
                     if hgnc_id.endswith("TBD"):
@@ -617,7 +625,7 @@ def main(**args):
                             f"{gene} has hgnc ids in multiple sources in HGNC "
                             "(main, alias, previous symbols)"
                         ))
-                        f.write(f"{gene}\t\n")
+                        f.write(f"{gene}\t\t\n")
                 else:
                     hgnc_id = gene
 
@@ -625,11 +633,26 @@ def main(**args):
                     session, meta, hgnc_id, transcript_data
                 )
 
-                f.write(f"{hgnc_id}\t{clinical_transcript}\n")
+                for tx in tx_data:
+                    if tx == clinical_transcript:
+                        clinical_transcript = "clinical_transcript"
+                    else:
+                        clinical_transcript = "not_clinical_transcript"
+
+                    if tx_data[tx]["canonical"] is True:
+                        status = "canonical"
+                    else:
+                        status = "not_canonical"
+
+                    f.write(
+                        f"{hgnc_id}\t{tx}\t{clinical_transcript}\t{status}\n"
+                    )
 
         print(f"Written file is '{folder}/{get_date()}_g2t.tsv'")
 
     elif args["command"] == "gene_list":
+        print("Parsing and processing data")
+
         genes = set()
 
         for folder in args["panel_folder"]:
@@ -651,8 +674,8 @@ def main(**args):
         for gene in single_genes:
             genes.add(gene)
 
-        folder = get_new_output_folder("gene_list")
-        Path(folder).mkdir(parents=True)
+        folder = write_new_output_folder("gene_list")
+        print("Writing output file")
 
         with open(f"{folder}/{get_date()}_genes", "w") as f:
             for gene in genes:
