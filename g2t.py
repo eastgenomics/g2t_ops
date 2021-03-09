@@ -339,6 +339,12 @@ def assign_transcript(
                         transcript_data[nirvana_tx]["match"] = "exact"
                     elif base_hgmd_tx == base_nirvana:
                         transcript_data[nirvana_tx]["match"] = "partial"
+                    else:
+                        # none of the hgmd transcripts match the nirvana ones
+                        # assign the canonical transcript with the canonical
+                        # match
+                        if nirvana_data[nirvana_tx]["canonical"] is True:
+                            transcript_data[nirvana_tx]["match"] = "canonical"
 
             else:
                 # if it's not present in hgmd the canonical transcript because
@@ -352,6 +358,8 @@ def assign_transcript(
 
         # if not exact match, find partial or canonical matches
         if "exact" not in final_check:
+            # priority order: check if there a partial match before checking if
+            # there is a canonical match
             if "partial" in final_check:
                 partial_match_txs = [
                     tx
@@ -635,9 +643,9 @@ def main(**args):
 
                 for tx in tx_data:
                     if tx == clinical_transcript:
-                        clinical_transcript = "clinical_transcript"
+                        clinical_tx_status = "clinical_transcript"
                     else:
-                        clinical_transcript = "not_clinical_transcript"
+                        clinical_tx_status = "not_clinical_transcript"
 
                     if tx_data[tx]["canonical"] is True:
                         status = "canonical"
@@ -645,7 +653,7 @@ def main(**args):
                         status = "not_canonical"
 
                     f.write(
-                        f"{hgnc_id}\t{tx}\t{clinical_transcript}\t{status}\n"
+                        f"{hgnc_id}\t{tx}\t{clinical_tx_status}\t{status}\n"
                     )
 
         print(f"Written file is '{folder}/{get_date()}_g2t.tsv'")
