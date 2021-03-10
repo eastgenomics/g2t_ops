@@ -24,3 +24,5 @@ python g2t.py gene_list ${panel_folder} ${test_directory_xls}
 # Generate g2t file from the gene file previously generated
 python g2t.py g2t ${gene_file} ${hgnc_file} ${gff} ${hgmd_database_name}
 ```
+
+The script also outputs a log file with each file generated in the output folder: `genes2transcripts/${date}-${index}/` and `gene_list/${date}-${index}/`
