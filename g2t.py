@@ -643,7 +643,7 @@ def main(**args):
                         gene, all_symbols, symbol_dict, alias_dict, prev_dict
                     )
 
-                    if hgnc_id.endswith("TBD"):
+                    if hgnc_id.endswith("_TBD"):
                         msg = (
                             f"{gene} has hgnc ids in multiple sources in HGNC "
                             "(main, alias, previous symbols)"
