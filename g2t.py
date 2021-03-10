@@ -2,6 +2,7 @@ import argparse
 from collections import defaultdict
 import datetime
 import gzip
+import logging
 import os
 from pathlib import Path
 import regex
@@ -12,6 +13,15 @@ from sqlalchemy.sql.schema import MetaData
 import xlrd
 
 from hgnc_queries import get_id as hq_get_id
+
+
+def create_log(output_folder):
+    logging.basicConfig(
+        filename=f"{output_folder}/g2t.log", level=logging.DEBUG
+    )
+    logger = logging.getLogger(__name__)
+
+    return logger
 
 
 def get_date():
@@ -367,7 +377,10 @@ def assign_transcript(
                     if transcript_data[tx]["match"] == "partial"
                 ]
 
+                # check how many partial matches are present
                 if len(partial_match_txs) > 1:
+                    # get the highest version number for choosing the clinical
+                    # transcript
                     max_version = max(
                         [tx.split(".")[1]for tx in partial_match_txs]
                     )
@@ -384,6 +397,7 @@ def assign_transcript(
                     for tx in transcript_data
                     if transcript_data[tx]["match"] == "canonical"
                 ][0]
+                clinical_transcript = f"{clinical_transcript}_TO_REVIEW"
         # exact match so clear clinical transcript
         else:
             clinical_transcript = [
@@ -619,6 +633,7 @@ def main(**args):
         )
 
         folder = write_new_output_folder("genes2transcripts")
+        logger = create_log(folder)
         print("Writing output file")
 
         with open(f"{folder}/{get_date()}_g2t.tsv", "w") as f:
@@ -629,10 +644,12 @@ def main(**args):
                     )
 
                     if hgnc_id.endswith("TBD"):
-                        print((
+                        msg = (
                             f"{gene} has hgnc ids in multiple sources in HGNC "
                             "(main, alias, previous symbols)"
-                        ))
+                        )
+                        print(msg)
+                        logger.warning(msg)
                         f.write(f"{gene}\t\t\n")
                 else:
                     hgnc_id = gene
@@ -642,10 +659,20 @@ def main(**args):
                 )
 
                 for tx in tx_data:
+                    clinical_tx_status = None
+
                     if tx == clinical_transcript:
                         clinical_tx_status = "clinical_transcript"
                     else:
                         clinical_tx_status = "not_clinical_transcript"
+
+                    if f"{tx}_TO_REVIEW" == clinical_transcript:
+                        msg = (
+                            f"{hgnc_id} - {tx}: Review the clinical transcript"
+                        )
+                        print(msg)
+                        logger.warning(msg)
+                        clinical_tx_status = "to_review"
 
                     if tx_data[tx]["canonical"] is True:
                         status = "canonical"
