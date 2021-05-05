@@ -406,6 +406,9 @@ def assign_transcript(
                 if transcript_data[tx]["match"] == "exact"
             ][0]
 
+    else:
+        print(f"{hgnc_id} is not present in the nirvana dump. Please review manually")
+
     return transcript_data, clinical_transcript
 
 
