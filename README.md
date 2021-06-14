@@ -22,7 +22,10 @@ GRANT SELECT ON hgmd_2020_3 . * TO 'hgmd_ro'@'localhost';
 python g2t.py gene_list ${panel_folder} ${test_directory_xls}
 
 # Generate g2t file from the gene file previously generated
-python g2t.py g2t ${gene_file} ${hgnc_file} ${gff} ${hgmd_database_name}
+python g2t.py g2t ${hgnc_file} ${gff} ${hgmd_database_name} -gf ${gene_file}
+
+# Generate g2t file from panel form and older g2t
+python g2t.py g2t ${hgnc_file} ${gff} ${hgmd_database_name} -pf ${panel_form} -g2t ${g2t_file}
 ```
 
 The script also outputs a log file with each file generated in the output folder: `genes2transcripts/${date}-${index}/` and `gene_list/${date}-${index}/`
