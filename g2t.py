@@ -5,11 +5,12 @@ import gzip
 import logging
 import os
 from pathlib import Path
-import regex
+import sys
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql.schema import MetaData
+import regex
 import xlrd
 
 from hgnc_queries import get_id as hq_get_id
@@ -167,15 +168,13 @@ def find_id_using_ensg(ensg_id: str, hgnc_data: dict):
 
 
 def get_nirvana_data_dict(
-    nirvana_gff: str, all_symbols: list, hgnc_data: dict, symbol_data: dict,
-    alias_data: dict, prev_data: dict
+    nirvana_gff: str, hgnc_data: dict, symbols_data: list
 ):
     """ Return dict of parsed data for Nirvana
     Args:
         nirvana_refseq (str): GFF filepath for nirvana
         hgnc_data (dict): Dict of HGNC data
-        alias_data (dict): Dict of alias HGNC data
-        prev_data (dict): Dict of previous symbol HGNC data
+        symbols_data (list): List of symbol data (alias data, previous data..)
 
     Returns:
         dict: Dict of gene2transcripts2exons
@@ -218,13 +217,11 @@ def get_nirvana_data_dict(
 
                     if hgnc_id is None:
                         hgnc_id, ensg_id = assign_ids_to_symbol(
-                            gff_gene_name, all_symbols, symbol_data,
-                            alias_data, prev_data
+                            gff_gene_name, hgnc_data, symbols_data
                         )
                 else:
                     hgnc_id, ensg_id = assign_ids_to_symbol(
-                        gff_gene_name, all_symbols, symbol_data,
-                        alias_data, prev_data
+                        gff_gene_name, hgnc_data, symbols_data
                     )
 
                 if hgnc_id is None:
@@ -251,20 +248,20 @@ def get_nirvana_data_dict(
 
 
 def assign_ids_to_symbol(
-    gene_symbol: str, all_symbols: list, hgnc_data: dict, alias_data: dict,
-    prev_data: dict
+    gene_symbol: str, hgnc_data: dict, symbols_data: list
 ):
     """ Get the hgnc and ensg ids from a gene symbol
 
     Args:
         gene_symbol (str): Gene symbol
         hgnc_data (dict): Dict of hgnc data
-        alias_data (dict): Dict of alias hgnc data
-        prev_data (dict): Dict of previous symbols hgnc data
+        symbols_data (list): List of symbol data (alias data, previous data..)
 
     Returns:
         tuple: hgnc id and ensg id
     """
+
+    all_symbols, symbol_dict, alias_data, prev_data = symbols_data
 
     hgnc_id = None
     ensg_id = None
@@ -405,6 +402,9 @@ def assign_transcript(
                 for tx in transcript_data
                 if transcript_data[tx]["match"] == "exact"
             ][0]
+
+    else:
+        print(f"{hgnc_id} is not present in the nirvana dump. Please review manually")
 
     return transcript_data, clinical_transcript
 
@@ -608,12 +608,67 @@ def write_new_output_folder(output_dump: str, output_suffix: str = ""):
     return output_folder
 
 
+def parse_panel_form(excel_file: str):
+    """ Parse panel form to get the genes
+
+    Args:
+        excel_file (str): Panel form as excel file
+
+    Returns:
+        set: Gene list from panel form
+    """
+
+    xls = xlrd.open_workbook(excel_file)
+    sheet_with_genes = xls.sheet_by_name("Gene list")
+
+    gene_list = set()
+
+    for row in range(sheet_with_genes.nrows):
+        if row > 1:
+            gene_list.add(sheet_with_genes.row_values(row)[1])
+
+    return gene_list
+
+
+def parse_current_g2t(current_g2t_file: str):
+    """ Parse g2t file to be reused in the future g2t
+
+    Args:
+        current_g2t_file (str): Path to the g2t file
+
+    Returns:
+        list: List of the lines in the g2t file
+    """
+
+    data = []
+
+    with open(current_g2t_file) as f:
+        for line in f:
+            data.append(line)a
+
+    return data
+
+
 def main(**args):
     if args["command"] == "g2t":
-        print("Parsing and processing data")
+        if args["gene_file"]:
+            with open(args["gene_file"]) as f:
+                genes = f.read().splitlines()
 
-        with open(args["gene_file"]) as f:
-            genes = f.read().splitlines()
+            current_g2t = []
+
+        elif args["panel_form"] and args["g2t_file"]:
+            genes = parse_panel_form(args["panel_form"])
+            current_g2t = parse_current_g2t(args["g2t_file"])
+
+        else:
+            print(
+                "Please use either the -gf option or the combinaison of -pf "
+                "and -g2t options"
+            )
+            sys.exit()
+
+        print("Parsing and processing data")
 
         hgnc_data, symbol_dict, alias_dict, prev_dict = parse_hgnc_dump(
             args["hgnc"]
@@ -622,10 +677,10 @@ def main(**args):
             list(symbol_dict.keys()) + list(alias_dict.keys()) +
             list(prev_dict.keys())
         )
+        symbols_data = [all_symbols, symbol_dict, alias_dict, prev_dict]
 
         transcript_data = get_nirvana_data_dict(
-            args["gff"], all_symbols, hgnc_data, symbol_dict, alias_dict,
-            prev_dict
+            args["gff"], hgnc_data, symbols_data
         )
 
         session, meta = connect_to_db(
@@ -634,54 +689,58 @@ def main(**args):
 
         folder = write_new_output_folder("genes2transcripts")
         logger = create_log(folder)
+
+        for gene in genes:
+            if not gene.startswith("HGNC:"):
+                hgnc_id, ensg_id = assign_ids_to_symbol(
+                    gene, hgnc_data, symbols_data
+                )
+
+                if hgnc_id.endswith("_TBD"):
+                    msg = (
+                        f"{gene} has hgnc ids in multiple sources in HGNC "
+                        "(main, alias, previous symbols)"
+                    )
+                    print(msg)
+                    logger.warning(msg)
+                    current_g2t.append(f"{gene}\t\t\t\n")
+            else:
+                hgnc_id = gene
+
+            tx_data, clinical_transcript = assign_transcript(
+                session, meta, hgnc_id, transcript_data
+            )
+
+            for tx in tx_data:
+                clinical_tx_status = None
+
+                if tx == clinical_transcript:
+                    clinical_tx_status = "clinical_transcript"
+                else:
+                    clinical_tx_status = "not_clinical_transcript"
+
+                if f"{tx}_TO_REVIEW" == clinical_transcript:
+                    msg = (
+                        f"{hgnc_id} - {tx}: Review the clinical transcript"
+                    )
+                    print(msg)
+                    logger.warning(msg)
+                    clinical_tx_status = "to_review"
+
+                if tx_data[tx]["canonical"] is True:
+                    status = "canonical"
+                else:
+                    status = "not_canonical"
+
+                current_g2t.append(
+                    f"{hgnc_id}\t{tx}\t{clinical_tx_status}\t{status}\n"
+                )
+
         print("Writing output file")
 
         with open(f"{folder}/{get_date()}_g2t.tsv", "w") as f:
-            for gene in genes:
-                if not gene.startswith("HGNC:"):
-                    hgnc_id, ensg_id = assign_ids_to_symbol(
-                        gene, all_symbols, symbol_dict, alias_dict, prev_dict
-                    )
-
-                    if hgnc_id.endswith("_TBD"):
-                        msg = (
-                            f"{gene} has hgnc ids in multiple sources in HGNC "
-                            "(main, alias, previous symbols)"
-                        )
-                        print(msg)
-                        logger.warning(msg)
-                        f.write(f"{gene}\t\t\n")
-                else:
-                    hgnc_id = gene
-
-                tx_data, clinical_transcript = assign_transcript(
-                    session, meta, hgnc_id, transcript_data
-                )
-
-                for tx in tx_data:
-                    clinical_tx_status = None
-
-                    if tx == clinical_transcript:
-                        clinical_tx_status = "clinical_transcript"
-                    else:
-                        clinical_tx_status = "not_clinical_transcript"
-
-                    if f"{tx}_TO_REVIEW" == clinical_transcript:
-                        msg = (
-                            f"{hgnc_id} - {tx}: Review the clinical transcript"
-                        )
-                        print(msg)
-                        logger.warning(msg)
-                        clinical_tx_status = "to_review"
-
-                    if tx_data[tx]["canonical"] is True:
-                        status = "canonical"
-                    else:
-                        status = "not_canonical"
-
-                    f.write(
-                        f"{hgnc_id}\t{tx}\t{clinical_tx_status}\t{status}\n"
-                    )
+            for line in current_g2t:
+                f.write(line)
 
         print(f"Written file is '{folder}/{get_date()}_g2t.tsv'")
 
@@ -737,10 +796,12 @@ if __name__ == "__main__":
     gene_file.add_argument("test_directory", help="National test directory")
 
     g2t = subparser.add_parser("g2t", help="Generate genes2transcripts file")
-    g2t.add_argument("gene_file", help="Gene file")
     g2t.add_argument("hgnc", help="HGNC dump")
     g2t.add_argument("gff", help="Nirvana gff")
     g2t.add_argument("database", help="HGMD database to connect to")
+    g2t.add_argument("-gf", "--gene_file", help="Gene file")
+    g2t.add_argument("-pf", "--panel_form", help="Bespoke panel form")
+    g2t.add_argument("-g2t", "--g2t_file", help="Current g2t file")
 
     args = vars(parser.parse_args())
     main(**args)
