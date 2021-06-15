@@ -644,7 +644,7 @@ def parse_current_g2t(current_g2t_file: str):
 
     with open(current_g2t_file) as f:
         for line in f:
-            data.append(line)a
+            data.append(line)
 
     return data
 
@@ -663,7 +663,7 @@ def main(**args):
 
         else:
             print(
-                "Please use either the -gf option or the combinaison of -pf "
+                "Please use either the -gf option or the combination of -pf "
                 "and -g2t options"
             )
             sys.exit()
@@ -799,9 +799,11 @@ if __name__ == "__main__":
     g2t.add_argument("hgnc", help="HGNC dump")
     g2t.add_argument("gff", help="Nirvana gff")
     g2t.add_argument("database", help="HGMD database to connect to")
-    g2t.add_argument("-gf", "--gene_file", help="Gene file")
+
+    gf_g2t_group = g2t.add_mutually_exclusive_group()
+    gf_g2t_group.add_argument("-gf", "--gene_file", help="Gene file")
     g2t.add_argument("-pf", "--panel_form", help="Bespoke panel form")
-    g2t.add_argument("-g2t", "--g2t_file", help="Current g2t file")
+    gf_g2t_group.add_argument("-g2t", "--g2t_file", help="Current g2t file")
 
     args = vars(parser.parse_args())
     main(**args)
