@@ -641,44 +641,84 @@ def parse_current_g2t(current_g2t_file: str):
     """
 
     data = []
+    genes = set()
 
     with open(current_g2t_file) as f:
         for line in f:
             data.append(line)
+            gene = line.split()[0]
+            genes.add(gene)
 
-    return data
+    return data, genes
+
+
+def parse_gene_file(file: str):
+    with open(file) as f:
+        genes = [line.strip() for line in f.readlines()]
+
+    return genes
 
 
 def main(**args):
     if args["command"] == "g2t":
+        folder = write_new_output_folder("genes2transcripts")
+        logger = create_log(folder)
+
         if args["gene_file"]:
+            # get new g2t from gene_list generated from the gene list subparser
             with open(args["gene_file"]) as f:
                 genes = f.read().splitlines()
 
             current_g2t = []
 
         elif args["panel_form"] and args["g2t_file"]:
+            # add genes from the xls bespoke panel form
             genes = parse_panel_form(args["panel_form"])
-            current_g2t = parse_current_g2t(args["g2t_file"])
+            current_g2t, g2t_genes = parse_current_g2t(args["g2t_file"])
+
+        elif args["genes"] and args["g2t_file"]:
+            # add genes from a list of hgnc ids or a file
+            if len(args["genes"]) == 1:
+                if Path(args["genes"][0]).exists():
+                    genes = parse_gene_file(args["genes"][0])
+                else:
+                    genes = [gene.strip() for gene in args["genes"]]
+            else:
+                genes = [gene.strip() for gene in args["genes"]]
+
+            current_g2t, g2t_genes = parse_current_g2t(args["g2t_file"])
 
         else:
             print(
-                "Please use either the -gf option or the combination of -pf "
-                "and -g2t options"
+                "Please use either the -gf option, the combination of -pf "
+                "and -g2t or the combination of -genes and -g2t options"
             )
             sys.exit()
 
+        # if g2t was passed, check if the genes that we want to add are not
+        # already in g2t
+        if current_g2t:
+            for gene in genes:
+                if gene in g2t_genes:
+                    msg = f"{gene} is already present in {args['g2t_file']}"
+                    logger.warning(msg)
+                    raise Exception(msg)
+
         print("Parsing and processing data")
 
+        # get data from the hgnc dump
         hgnc_data, symbol_dict, alias_dict, prev_dict = parse_hgnc_dump(
             args["hgnc"]
         )
+        # join symbols from all origins into one big list for determining if
+        # a given symbol is ambiguous to match to a hgnc id
         all_symbols = (
             list(symbol_dict.keys()) + list(alias_dict.keys()) +
             list(prev_dict.keys())
         )
         symbols_data = [all_symbols, symbol_dict, alias_dict, prev_dict]
 
+        # parse gff file
         transcript_data = get_nirvana_data_dict(
             args["gff"], hgnc_data, symbols_data
         )
@@ -687,15 +727,15 @@ def main(**args):
             "hgmd_ro", "hgmdreadonly", "localhost", args["database"]
         )
 
-        folder = write_new_output_folder("genes2transcripts")
-        logger = create_log(folder)
-
         for gene in genes:
+            # if given gene symbols, try to assign hgnc ids
             if not gene.startswith("HGNC:"):
                 hgnc_id, ensg_id = assign_ids_to_symbol(
                     gene, hgnc_data, symbols_data
                 )
 
+                # the assign_ids_to_symbol function can give a _TBD tag if the
+                # gene symbol was ambiguous to assign to a hgnc id
                 if hgnc_id.endswith("_TBD"):
                     msg = (
                         f"{gene} has hgnc ids in multiple sources in HGNC "
@@ -707,6 +747,7 @@ def main(**args):
             else:
                 hgnc_id = gene
 
+            # assign transcript given the hgnc id and gff data
             tx_data, clinical_transcript = assign_transcript(
                 session, meta, hgnc_id, transcript_data
             )
@@ -719,6 +760,8 @@ def main(**args):
                 else:
                     clinical_tx_status = "not_clinical_transcript"
 
+                # requires manual input if there is no other transcripts than
+                # the canonical one
                 if f"{tx}_TO_REVIEW" == clinical_transcript:
                     msg = (
                         f"{hgnc_id} - {tx}: Review the clinical transcript"
@@ -801,8 +844,15 @@ if __name__ == "__main__":
     g2t.add_argument("database", help="HGMD database to connect to")
 
     gf_g2t_group = g2t.add_mutually_exclusive_group()
+    pf_genes_group = g2t.add_mutually_exclusive_group()
     gf_g2t_group.add_argument("-gf", "--gene_file", help="Gene file")
-    g2t.add_argument("-pf", "--panel_form", help="Bespoke panel form")
+    pf_genes_group.add_argument(
+        "-pf", "--panel_form", help="Bespoke panel form"
+    )
+    pf_genes_group.add_argument(
+        "-genes", "--genes", nargs="+",
+        help="HGNC ids in a file (one gene per line) or list in the CLI"
+    )
     gf_g2t_group.add_argument("-g2t", "--g2t_file", help="Current g2t file")
 
     args = vars(parser.parse_args())
