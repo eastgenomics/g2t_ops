@@ -26,6 +26,10 @@ python g2t.py g2t ${hgnc_file} ${gff} ${hgmd_database_name} -gf ${gene_file}
 
 # Generate g2t file from panel form and older g2t
 python g2t.py g2t ${hgnc_file} ${gff} ${hgmd_database_name} -pf ${panel_form} -g2t ${g2t_file}
+
+# Generate g2t file from gene file or given genes in the CLI and older g2t
+python g2t.py g2t ${hgnc_file} ${gff} ${hgmd_database_name} -genes ${gene_file} -g2t ${g2t_file}
+python g2t.py g2t ${hgnc_file} ${gff} ${hgmd_database_name} -genes HGNC:2123 HGNC:2374 -g2t ${g2t_file}
 ```
 
 The script also outputs a log file with each file generated in the output folder: `genes2transcripts/${date}-${index}/` and `gene_list/${date}-${index}/`
