@@ -695,15 +695,6 @@ def main(**args):
             )
             sys.exit()
 
-        # if g2t was passed, check if the genes that we want to add are not
-        # already in g2t
-        if current_g2t:
-            for gene in genes:
-                if gene in g2t_genes:
-                    msg = f"{gene} is already present in {args['g2t_file']}"
-                    logger.warning(msg)
-                    raise Exception(msg)
-
         print("Parsing and processing data")
 
         # get data from the hgnc dump
@@ -746,6 +737,13 @@ def main(**args):
                     current_g2t.append(f"{gene}\t\t\t\n")
             else:
                 hgnc_id = gene
+
+            # skip genes that are already present in the g2t given
+            if hgnc_id in g2t_genes:
+                msg = f"{hgnc_id} is already in {args['g2t_file']}"
+                print(msg)
+                logger.warning(msg)
+                continue
 
             # assign transcript given the hgnc id and gff data
             tx_data, clinical_transcript = assign_transcript(
