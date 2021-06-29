@@ -670,6 +670,7 @@ def main(**args):
                 genes = f.read().splitlines()
 
             current_g2t = []
+            g2t_genes = []
 
         elif args["panel_form"] and args["g2t_file"]:
             # add genes from the xls bespoke panel form
