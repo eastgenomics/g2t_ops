@@ -7,11 +7,12 @@ Need to have HGMD database with those credentials: "hgmd_ro", "hgmdreadonly", "l
 ```bash
 dx download project-Fz4Q15Q42Z9YjYk110b3vGYQ:file-Fz4Q46842Z9z2Q6ZBjy7jVPY
 gunzip hgmd_pro-2020.3.dump.gz
-mysql -u ${user} -p < hgmd_pro-2020.3.dump
+# create the database in the mysql interface
+sudo mysql -p -D ${name_of_the_HGMD_database} < hgmd_pro-2020.3.dump
 ```
 
 ```sql
-CREATE IF NOT EXISTS USER 'hgmd_ro'@'localhost' IDENTIFIED BY 'hgmdreadonly';
+CREATE USER 'hgmd_ro'@'localhost' IDENTIFIED BY 'hgmdreadonly';
 GRANT SELECT ON hgmd_2020_3 . * TO 'hgmd_ro'@'localhost';
 ```
 
