@@ -254,7 +254,6 @@ def assign_ids_to_symbol(
 
     Args:
         gene_symbol (str): Gene symbol
-        hgnc_data (dict): Dict of hgnc data
         symbols_data (list): List of symbol data (alias data, previous data..)
 
     Returns:
