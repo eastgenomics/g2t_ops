@@ -217,11 +217,11 @@ def get_nirvana_data_dict(
 
                     if hgnc_id is None:
                         hgnc_id, ensg_id = assign_ids_to_symbol(
-                            gff_gene_name, hgnc_data, symbols_data
+                            gff_gene_name, symbols_data
                         )
                 else:
                     hgnc_id, ensg_id = assign_ids_to_symbol(
-                        gff_gene_name, hgnc_data, symbols_data
+                        gff_gene_name, symbols_data
                     )
 
                 if hgnc_id is None:
@@ -248,7 +248,7 @@ def get_nirvana_data_dict(
 
 
 def assign_ids_to_symbol(
-    gene_symbol: str, hgnc_data: dict, symbols_data: list
+    gene_symbol: str, symbols_data: list
 ):
     """ Get the hgnc and ensg ids from a gene symbol
 
@@ -275,9 +275,9 @@ def assign_ids_to_symbol(
     if amount_symbol_in_data > 1:
         return f"{gene_symbol}_hgnc_id_TBD", f"{gene_symbol}_ensg_id_TBD"
 
-    if gene_symbol in hgnc_data:
-        hgnc_id = hgnc_data[gene_symbol]["hgnc_id"]
-        ensg_id = hgnc_data[gene_symbol]["ensg_id"]
+    if gene_symbol in symbol_dict:
+        hgnc_id = symbol_dict[gene_symbol]["hgnc_id"]
+        ensg_id = symbol_dict[gene_symbol]["ensg_id"]
     elif gene_symbol in alias_data:
         hgnc_id = alias_data[gene_symbol]["hgnc_id"]
         ensg_id = alias_data[gene_symbol]["ensg_id"]
@@ -722,9 +722,7 @@ def main(**args):
         for gene in genes:
             # if given gene symbols, try to assign hgnc ids
             if not gene.startswith("HGNC:"):
-                hgnc_id, ensg_id = assign_ids_to_symbol(
-                    gene, hgnc_data, symbols_data
-                )
+                hgnc_id, ensg_id = assign_ids_to_symbol(gene, symbols_data)
 
                 # the assign_ids_to_symbol function can give a _TBD tag if the
                 # gene symbol was ambiguous to assign to a hgnc id
@@ -735,7 +733,7 @@ def main(**args):
                     )
                     print(msg)
                     logger.warning(msg)
-                    current_g2t.append(f"{gene}\t\t\t\n")
+                    current_g2t.append(f"{gene}\t\t\tto_review\n")
             else:
                 hgnc_id = gene
 
