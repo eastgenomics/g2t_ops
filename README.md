@@ -54,3 +54,33 @@ Otherwise a custom output folder can be specified like so:
 ```bash
 python main.py -o ${output_folder} --hgnc_dump ${hgnc_dump} ...
 ```
+
+## Outputs
+
+The `convert_symbols` command will output one file called `hgnc_ids.txt` with the following format:
+
+```
+gene_symbol hgnc_id outcome
+```
+
+The `gene_symbol` column will contain all the symbols passed to g2t_ops.
+The `hgnc_id` column will contain either the HGNC id found or `None` depending on the outcome of the search in the HGNC dump.
+The `outcome` column will contain the outcome of the search i.e. in which column the HGNC id was found (Main, Previous, Alias) or if it is not, why it wasn't found (Multiple Previous, Multiple Alias).
+
+The `transcript_assigner` command will output 3 files called:
+
+- g2t_file.tsv
+- sql_queries_to_import.sql
+- gene_transcript_status.txt
+
+The first is formatted as such:
+
+```
+gene    transcript  status  source
+```
+
+For every gene passed, its transcripts gathered from either a given exon file or a default exon file in 001_Reference. The `status` column will inform whether the transcript is the clinical transcript or not. And the `source` column informs how the clinical transcript status was selected (MANE/HGMD).
+
+The second contains the SQL queries needed to import the genes and the transcripts.
+
+The third file contains the genes and if a clinical transcript was found for it.
