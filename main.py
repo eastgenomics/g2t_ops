@@ -44,6 +44,7 @@ def main(args):
         transcript_assigner.write_transcript_status(
             clinical_tx_data, output_path
         )
+        print(f"Created output in {output_path}")
 
 
 if __name__ == "__main__":

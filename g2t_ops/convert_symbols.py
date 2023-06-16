@@ -34,3 +34,5 @@ def write_hgnc_ids(data, output_path):
     with open(f"{output_path}/hgnc_ids.txt", "w") as f:
         for symbol, hgnc_id, status in data:
             f.write(f"{symbol}\t{hgnc_id}\t{status}\n")
+
+    print(f"Created file {output_path}/hgnc_ids.txt")
