@@ -5,7 +5,7 @@ import os
 from g2t_ops import utils
 
 
-def get_date_for_db():
+def get_date_for_db() -> str:
     """ Return date in YYYY-MM-DD format for insertion in database
 
     Returns:
@@ -15,7 +15,7 @@ def get_date_for_db():
     return datetime.datetime.now().strftime("%Y-%m-%d")
 
 
-def parse_mane_file(mane_file, hgnc_dump):
+def parse_mane_file(mane_file, hgnc_dump) -> dict:
     """ Parse a MANE CSV file downloaded from
     http://tark.ensembl.org/web/mane_GRCh37_list/
 
@@ -44,7 +44,8 @@ def parse_mane_file(mane_file, hgnc_dump):
     return mane_data
 
 
-def find_hgnc_id_for_mane(line, hgnc_dump):
+def find_hgnc_id_for_mane(line, hgnc_dump) -> dict:
+
     # each column has quotes around them so i'm striping them i.e.
     # "A1BG","MANE SELECT","ENST00000263100.8","NM_130786.4"
     cleaned_data = [ele.strip("\"") for ele in line.strip().split(",")]
@@ -60,7 +61,7 @@ def find_hgnc_id_for_mane(line, hgnc_dump):
             return None
 
 
-def find_HGMD_transcript(session, meta, hgnc_id):
+def find_HGMD_transcript(session, meta, hgnc_id) -> str:
     """ Find the HGMD transcript using a HGNC id
 
     Args:
@@ -102,7 +103,7 @@ def find_HGMD_transcript(session, meta, hgnc_id):
         )
 
 
-def get_transcripts(hgnc_ids, exon_data):
+def get_transcripts(hgnc_ids, exon_data) -> dict:
     data = {}
 
     for hgnc_id in hgnc_ids:
@@ -112,7 +113,7 @@ def get_transcripts(hgnc_ids, exon_data):
     return data
 
 
-def assign_transcripts(session, meta, mane_select_data, g2t_data):
+def assign_transcripts(session, meta, mane_select_data, g2t_data) -> dict:
     """ Assign a clinical transcript status for all the genes in the g2t file
 
     Args:
