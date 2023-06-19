@@ -45,6 +45,11 @@ def main(args):
             clinical_tx_data, output_path
         )
         print(f"Created output in {output_path}")
+    else:
+        print((
+            f"{args['command']} is not an accepted command. Please use "
+            "'convert_symbols' or 'assign_transcripts'"
+        ))
 
 
 if __name__ == "__main__":
