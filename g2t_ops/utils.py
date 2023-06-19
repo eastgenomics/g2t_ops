@@ -83,9 +83,21 @@ def parse_tsv(tsv):
     return df_with_none
 
 
-def parse_exon_file(dnanexus_file_id):
+def parse_exon_file(dnanexus_id):
+    """ Parse a TSV exon file
+
+    Args:
+        dnanexus_id (str): DNAnexus id
+
+    Raises:
+        Exception: Raised if the dnanexus id is not formatted correctly
+
+    Returns:
+        dict: Dict containing the HGNC ids and their transcripts
+    """
+
     data = {}
-    list_file_id = dnanexus_file_id.split(":")
+    list_file_id = dnanexus_id.split(":")
 
     if len(list_file_id) == 2:
         project_id, file_id = list_file_id
@@ -95,7 +107,7 @@ def parse_exon_file(dnanexus_file_id):
     else:
         raise Exception(
             "The given dnanexus id is not formatted correctly: "
-            f"{dnanexus_file_id}"
+            f"{dnanexus_id}"
         )
 
     f = dxpy.DXFile(file_id, project_id, mode="r")
