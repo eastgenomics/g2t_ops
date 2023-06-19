@@ -40,6 +40,19 @@ pip install -r requirements.txt
 
 The symbol file and hgnc files are single column files with a single element per row.
 
+```
+BRCA1
+BRCA2
+TAZ
+TENS1
+```
+
+```
+HGNC:1100
+HGNC:1101
+HGNC:12027s
+```
+
 ```bash
 source ${path_to_env}/bin/activate
 
