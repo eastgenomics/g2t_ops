@@ -24,6 +24,9 @@ def main(args):
         session, meta = utils.connect_to_local_database(user, pwd, db)
 
         if args["hgnc_ids"]:
+            for arg in args["hgnc_ids"]:
+                assert arg.startswith("HGNC"), f"{arg} does not start with HGNC"
+
             hgnc_ids = args["hgnc_ids"]
         else:
             hgnc_ids = utils.parse_file(args["hgnc_file"])
