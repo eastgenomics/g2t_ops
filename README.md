@@ -38,6 +38,8 @@ pip install -r requirements.txt
 
 ## How to run
 
+The symbol file and hgnc files are single column files with a single element per row.
+
 ```bash
 source ${path_to_env}/bin/activate
 
