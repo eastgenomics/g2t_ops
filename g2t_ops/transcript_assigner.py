@@ -109,6 +109,8 @@ def get_transcripts(hgnc_ids, exon_data) -> dict:
     for hgnc_id in hgnc_ids:
         if hgnc_id in exon_data:
             data[hgnc_id] = exon_data[hgnc_id]
+        else:
+            print(f"{hgnc_id} is not present in the GFF")
 
     return data
 
