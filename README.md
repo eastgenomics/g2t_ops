@@ -4,7 +4,7 @@
 
 To run this code, you need to have:
 
-- A HGNC dump downloaded from https://www.genenames.org/download/custom/
+- A HGNC dump downloaded from https://www.genenames.org/download/custom/ (default columns)
 - A MANE Select file downloaded from http://dev-tark.ensembl.org/web/mane_GRCh37_list/
 - A local HGMD database
 
