@@ -4,6 +4,7 @@ cffi==1.15.1
 charset-normalizer==3.1.0
 cryptography==40.0.2
 dxpy==0.348.0
+gffutils==0.12.2
 greenlet==2.0.2
 idna==3.4
 mysqlclient==2.1.1
@@ -17,6 +18,7 @@ regex==2023.6.3
 requests==2.28.2
 six==1.16.0
 SQLAlchemy==2.0.16
+sqlite3==3.31.1
 typing-extensions==4.6.3
 tzdata==2023.3
 urllib3==1.26.16
