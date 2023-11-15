@@ -107,7 +107,7 @@ def get_mane_transcripts_from_b38_gff(db):
             hgnc_id = hgnc_list[0].split(":", 1)[-1]
         else:
             hgnc_id = "None provided"
-        
+
         # Extract MANE tag (MANE Select / MANE Plus Clinical) and transcript ID
         mane_tag = feature.attributes["tag"][0]
         transcript_id = feature.attributes["transcript_id"][0]
@@ -248,7 +248,6 @@ def assign_transcripts(session, meta, mane_select_data, g2t_data) -> dict:
                     else:
                         data[gene]["clinical_transcript"] = [[tx, "HGMD"]]
                     continue
-
 
             if "clinical_transcript" in data[gene]:
                 # Check the query transcript is not already listed. If not,
