@@ -87,14 +87,16 @@ def parse_mane_gff(gff):
 
 def get_mane_transcripts_from_b38_gff(db):
     """
-    Make dictionary with each gene in the GFF, its transcript ID and HGNC ID
+    Make dictionary with each transcript ID in the GFF and its HGNC ID
     Args:
         FeatureDB: FeatureDB object for the gff
     Returns:
         mane_data (dict): a dictionary in the format {hgnc_id: refseq}
     """
     mane_data = {}
+    # For each exon in the gff
     for feature in db.features_of_type("exon"):
+        # Extract HGNC ID
         hgnc_list = [
             i
             for i in feature.attributes["Dbxref"]
@@ -105,10 +107,12 @@ def get_mane_transcripts_from_b38_gff(db):
             hgnc_id = hgnc_list[0].split(":", 1)[-1]
         else:
             hgnc_id = "None provided"
-
+        
+        # Extract MANE tag (MANE Select / MANE Plus Clinical) and transcript ID
         mane_tag = feature.attributes["tag"][0]
         transcript_id = feature.attributes["transcript_id"][0]
-            
+
+        # Add unique transcript IDs and MANE status to MANE data dict
         if hgnc_id in mane_data.keys():
             if transcript_id not in mane_data[hgnc_id].keys():
                 mane_data[hgnc_id][transcript_id] = mane_tag
@@ -199,20 +203,29 @@ def assign_transcripts(session, meta, mane_select_data, g2t_data) -> dict:
                 # parse_gff function
                 if isinstance(mane_select_data[gene], dict):
                     mane_transcripts = mane_select_data[gene]
-                    transcript_id = mane_transcripts.keys()
-                    transcript_id = list(transcript_id)
-                    for mane_transcript in transcript_id:
+                    # Convert keys into list to iterate over
+                    query_mane_transcripts = mane_transcripts.keys()
+                    query_mane_transcripts = list(query_mane_transcripts)
+
+                    for mane_transcript in query_mane_transcripts:
                         mane_base, mane_version = mane_transcript.split(".")
+
+                        # Compare g2t transcript with MANE transcript and add
+                        # 'clinical transcript' label if they match. Multiple
+                        # clinical transcripts are possible as MANE can have
+                        # both a Select and Plus Clinical for the same gene
                         if tx_base == mane_base:
                             mane_status = mane_transcripts[mane_transcript]
                             if "clinical_transcript" in data[gene]:
-                                data[gene]["clinical_transcript"].append([tx, mane_status])
+                                data[gene]["clinical_transcript"].append(
+                                    [tx, mane_status]
+                                )
                             else:
                                 data[gene]["clinical_transcript"] = [[tx, mane_status]]
                             continue
 
                 else:
-                    # Else means this is a MANE GRCh37 select file
+                    # Else means mane_select_data was made from a MANE b37 csv
                     mane_transcript = mane_select_data[gene]
 
                     mane_base, mane_version = mane_transcript.split(".")
@@ -235,7 +248,11 @@ def assign_transcripts(session, meta, mane_select_data, g2t_data) -> dict:
                     else:
                         data[gene]["clinical_transcript"] = [[tx, "HGMD"]]
                     continue
+
+
             if "clinical_transcript" in data[gene]:
+                # Check the query transcript is not already listed. If not,
+                # add it as a non-clinical transcript
                 if any(tx in sublist for sublist in data[gene]["clinical_transcript"]) is False:
                     data[gene]["no_clinical_transcript"].append([tx, "None"])
             else:
