@@ -65,11 +65,16 @@ source ${path_to_env}/bin/activate
 python main.py --hgnc_dump ${hgnc_dump} convert_symbols -symbols ${symbol} ${symbol} ...
 python main.py --hgnc_dump ${hgnc_dump} convert_symbols -symbol_file ${symbol_file}
 
-python main.py --hgnc_dump ${hgnc_dump} assign_transcripts -mane ${MANE_Select_file} -hgmd ${database_name} ${database_usr} ${database_pwd} -hgnc_ids ${hgnc_id} ${hgnc_id} ...
-python main.py --hgnc_dump ${hgnc_dump} assign_transcripts -mane ${MANE_Select_file} -hgmd ${database_name} ${database_usr} ${database_pwd} -hgnc_file ${hgnc_file}
+# for build 37, Ensembl MANE Select csv 
+python main.py --hgnc_dump ${hgnc_dump} assign_transcripts -mane ${Ensembl_MANE_Select_file} -hgmd ${database_name} ${database_usr} ${database_pwd} -hgnc_ids ${hgnc_id} ${hgnc_id} ...
+python main.py --hgnc_dump ${hgnc_dump} assign_transcripts -mane ${Ensembl_MANE_Select_file} -hgmd ${database_name} ${database_usr} ${database_pwd} -hgnc_file ${hgnc_file}
+
+# for build 38, RefSeq MANE gff
+python main.py --hgnc_dump ${hgnc_dump} assign_transcripts --mane_gff ${MANE_RefSeq_gff} -hgmd ${database_name} ${database_usr} ${database_pwd} -hgnc_ids ${hgnc_id} ${hgnc_id} ...
+python main.py --hgnc_dump ${hgnc_dump} assign_transcripts --mane_gff ${MANE_RefSeq_gff} -hgmd ${database_name} ${database_usr} ${database_pwd} -hgnc_file ${hgnc_file}
 ```
 
-By default, the output created by this script will be located `./YYMMDD_results`. If that folder already exists, a new folder will be created with an number to differenciate folders.
+By default, the output created by this script will be located `./YYMMDD_results`. If that folder already exists, a new folder will be created with an number to differentiate folders.
 Otherwise a custom output folder can be specified like so:
 
 ```bash
