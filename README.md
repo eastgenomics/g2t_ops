@@ -5,7 +5,7 @@
 To run this code, you need to have:
 
 - A HGNC dump downloaded from https://www.genenames.org/download/custom/ (default columns)
-- A MANE Select file downloaded from http://dev-tark.ensembl.org/web/mane_GRCh37_list/
+- A MANE Select file downloaded from http://tark.ensembl.org/web/mane_GRCh37_list/ (for build 37), or a MANE Select file from https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/ (for build 38)
 - A local HGMD database
 
 DNAnexus has some HGMD dumps in dev projects. To setup the HGMD database:
@@ -19,14 +19,20 @@ Commands to do it:
 ```bash
 dx download ${hgmd_dump}
 gunzip ${hgmd_dump}
-mysql -u ${user} -p < ${unzipped_hgmd_dump}
+
+mysql
+# in mysql environment
+mysql> create database ${hgmd_database_name};
+# exit mysql environment with ctrl + D
+
+mysql -D ${hgmd_database_name} < ${hgmd_dump}
 ```
 
 Create a user for the HGMD database:
 
 ```sql
-CREATE IF NOT EXISTS USER 'hgmd_ro'@'localhost' IDENTIFIED BY 'hgmdreadonly';
-GRANT SELECT ON hgmd_2020_3 . * TO 'hgmd_ro'@'localhost';
+CREATE USER IF NOT EXISTS 'hgmd_ro'@'localhost' IDENTIFIED BY 'hgmdreadonly';
+GRANT SELECT ON ${hgmd_database_name} . * TO 'hgmd_ro'@'localhost';
 ```
 
 Setup environment
@@ -93,9 +99,12 @@ The first is formatted as such:
 ```
 gene    transcript  status  source
 ```
+These columns represent:
+HGNC ID | Transcript | Clinical transcript status (i.e. could the code find a match in MANE or HGMD) | Source of the clinical transcript (i.e. MANE or HGMD)
+-- | -- | -- | --
 
 For every gene passed, its transcripts gathered from either a given exon file or a default exon file in 001_Reference. The `status` column will inform whether the transcript is the clinical transcript or not. And the `source` column informs how the clinical transcript status was selected (MANE/HGMD).
 
-The second contains the SQL queries needed to import the genes and the transcripts.
+The second file contains the SQL queries needed to import the genes and the transcripts.
 
 The third file contains the genes and if a clinical transcript was found for it.

@@ -35,9 +35,17 @@ def main(args):
         g2t_data = transcript_assigner.get_transcripts(
             hgnc_ids, exon_file_data
         )
-        mane_data = transcript_assigner.parse_mane_file(
-            args["mane_select"], hgnc_dump
-        )
+        if args["mane_gff"]:
+            db = transcript_assigner.parse_mane_gff(
+                args["mane_gff"]
+            )
+            mane_data = transcript_assigner.get_mane_transcripts_from_b38_gff(
+                db
+            )
+        else:
+            mane_data = transcript_assigner.parse_mane_file(
+                args["mane_select"], hgnc_dump
+            )
         clinical_tx_data = transcript_assigner.assign_transcripts(
             session, meta, mane_data, g2t_data
         )
@@ -95,7 +103,7 @@ if __name__ == "__main__":
         )
     )
     assigner.add_argument(
-        "-mane", "--mane_select", required=True,
+        "-mane", "--mane_select", required=False,
         help="MANE Select file downloaded from http://tark.ensembl.org/web/mane_GRCh37_list/"
     )
     assigner.add_argument(
@@ -106,6 +114,10 @@ if __name__ == "__main__":
         "-exon_file", "--exon_file",
         default="project-Fkb6Gkj433GVVvj73J7x8KbV:file-GF611Z8433Gk7gZ47gypK7ZZ",
         help="Exon file id in DNAnexus"
+    )
+    assigner.add_argument(
+        "-mane_gff", "--mane_gff",
+        help="MANE GRCh38 GFF file to parse"
     )
 
     args = vars(parser.parse_args())
