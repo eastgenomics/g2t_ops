@@ -249,7 +249,7 @@ def assign_transcripts(session, meta, mane_select_data, g2t_data) -> dict:
                         continue
 
             if "clinical_transcript" in data[gene]:
-                #Check the query transcript is not already listed. If not,
+                # Check the query transcript is not already listed. If not,
                 # add it as a non-clinical transcript
                 if any(tx in sublist for sublist in data[gene]["clinical_transcript"]) is False:
                     data[gene]["no_clinical_transcript"].append([tx, "None"])
