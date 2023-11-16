@@ -241,8 +241,8 @@ def assign_transcripts(session, meta, mane_select_data, g2t_data) -> dict:
                 hgmd_base, hgmd_version = hgmd_transcript.split(".")
                 if tx_base == hgmd_base:
                     if "clinical_transcript" in data[gene]:
-                            # This HGMD transcript has already been labelled as
-                            # MANE, no need to duplicate it
+                        # This HGMD transcript has already been labelled as
+                        # MANE, no need to duplicate it
                         continue
                     else:
                         data[gene]["clinical_transcript"] = [[tx, "HGMD"]]
