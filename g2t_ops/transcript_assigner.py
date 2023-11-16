@@ -103,7 +103,7 @@ def get_mane_transcripts_from_b38_gff(db):
             if "HGNC" in i
         ]
 
-        if hgnc_list != []:
+        if hgnc_list:
             hgnc_id = hgnc_list[0].split(":", 1)[-1]
         else:
             hgnc_id = "None provided"
@@ -199,13 +199,12 @@ def assign_transcripts(session, meta, mane_select_data, g2t_data) -> dict:
             tx_base, tx_version = tx.split(".")
 
             if gene in mane_select_data:
-                # If mane_select_data is a dictionary, it was made by the
+                # If mane_select_data[gene] is a dictionary, it was made by the
                 # parse_gff function
                 if isinstance(mane_select_data[gene], dict):
                     mane_transcripts = mane_select_data[gene]
                     # Convert keys into list to iterate over
-                    query_mane_transcripts = mane_transcripts.keys()
-                    query_mane_transcripts = list(query_mane_transcripts)
+                    query_mane_transcripts = list(mane_transcripts.keys())
 
                     for mane_transcript in query_mane_transcripts:
                         mane_base, mane_version = mane_transcript.split(".")
@@ -220,9 +219,10 @@ def assign_transcripts(session, meta, mane_select_data, g2t_data) -> dict:
                                 data[gene]["clinical_transcript"].append(
                                     [tx, mane_status]
                                 )
+                                continue
                             else:
                                 data[gene]["clinical_transcript"] = [[tx, mane_status]]
-                            continue
+                                continue
 
                 else:
                     # Else means mane_select_data was made from a MANE b37 csv
@@ -239,18 +239,17 @@ def assign_transcripts(session, meta, mane_select_data, g2t_data) -> dict:
 
             if hgmd_transcript:
                 hgmd_base, hgmd_version = hgmd_transcript.split(".")
-
                 if tx_base == hgmd_base:
                     if "clinical_transcript" in data[gene]:
-                        # This HGMD transcript has already been labelled as
-                        # MANE, no need to duplicate it
+                            # This HGMD transcript has already been labelled as
+                            # MANE, no need to duplicate it
                         continue
                     else:
                         data[gene]["clinical_transcript"] = [[tx, "HGMD"]]
-                    continue
+                        continue
 
             if "clinical_transcript" in data[gene]:
-                # Check the query transcript is not already listed. If not,
+                #Check the query transcript is not already listed. If not,
                 # add it as a non-clinical transcript
                 if any(tx in sublist for sublist in data[gene]["clinical_transcript"]) is False:
                     data[gene]["no_clinical_transcript"].append([tx, "None"])
