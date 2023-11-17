@@ -188,7 +188,7 @@ def label_mane_transcripts(data, gene, mane_transcripts, tx, source):
         mane_transcripts: MANE transcript for gene (can be list or dictionary)
         depending on source of MANE transcript data
         tx: query transcript
-        source: source of MANE transcript data, either "refseq_gff" or 
+        source: source of MANE transcript data, either "refseq_gff" or
         "ensembl_csv"
     outputs:
         data: dictionary of gene and transcripts with HGMD labels
@@ -272,7 +272,6 @@ def assign_transcripts(session, meta, mane_select_data, g2t_data, source) -> dic
                 data = label_mane_transcripts(
                     data, gene, mane_transcripts, tx, source
                     )
-
 
             # Check if tx is HGMD
             hgmd_transcript = find_HGMD_transcript(session, meta, gene)
