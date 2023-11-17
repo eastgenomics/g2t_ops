@@ -118,10 +118,7 @@ def get_mane_transcripts_from_b38_gff(db):
                 mane_data[hgnc_id][transcript_id] = mane_tag
         else:
             mane_data[hgnc_id] = {transcript_id: mane_tag}
-    print(
-        f" There are {len(list(mane_data.values()))} MANE transcripts in the"
-        " Refseq GFF"
-    )
+
     return mane_data
 
 
