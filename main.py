@@ -42,12 +42,14 @@ def main(args):
             mane_data = transcript_assigner.get_mane_transcripts_from_b38_gff(
                 db
             )
+            source = "refseq_gff"
         else:
             mane_data = transcript_assigner.parse_mane_file(
                 args["mane_select"], hgnc_dump
             )
+            source = "ensembl_csv"
         clinical_tx_data = transcript_assigner.assign_transcripts(
-            session, meta, mane_data, g2t_data
+            session, meta, mane_data, g2t_data, source
         )
 
         transcript_assigner.write_g2t(clinical_tx_data, output_path)
