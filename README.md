@@ -5,7 +5,7 @@
 To run this code, you need to have:
 
 - A MANE Select file downloaded from Ensembl http://tark.ensembl.org/web/mane_GRCh37_list/ (for build 37), or a MANE Select file from RefSeq https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/ (for build 38)
-- A HGNC dump downloaded from https://www.genenames.org/download/custom/ (default columns). This is not needed if a RefSeq MANE gff is being used.
+- A HGNC dump downloaded from https://www.genenames.org/download/custom/ (default columns). This is not needed if a RefSeq MANE gff is being used, because the HGNC IDs are included in the gff.
 - A local HGMD database
 
 DNAnexus has some HGMD dumps in dev projects. To setup the HGMD database:
