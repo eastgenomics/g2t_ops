@@ -1,7 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import datetime
 import os
-
+import gffutils
+import sqlite3
 from g2t_ops import utils
 
 
@@ -61,6 +62,66 @@ def find_hgnc_id_for_mane(line, hgnc_dump) -> dict:
             return None
 
 
+def parse_mane_gff(gff):
+    """ Parse the gff data
+
+    Args:
+        gff (str): Path to GFF
+
+    Returns:
+        FeatureDB: FeatureDB object for the gff
+    """
+
+    # try to create sqlite db
+    try:
+        db = gffutils.create_db(
+            gff, "MANE_refseq.sqlite", verbose=True,
+            merge_strategy="create_unique"
+        )
+    except sqlite3.OperationalError as e:
+        # use existing db
+        db = gffutils.FeatureDB("MANE_refseq.sqlite")
+
+    return db
+
+
+def get_mane_transcripts_from_b38_gff(db):
+    """
+    Make dictionary with each transcript ID in the GFF and its HGNC ID
+    Args:
+        FeatureDB: FeatureDB object for the gff
+    Returns:
+        mane_data (dict): a dictionary in the format {hgnc_id: refseq}
+    """
+    mane_data = {}
+    # For each exon in the gff
+    for feature in db.features_of_type("exon"):
+        # Extract HGNC ID
+        hgnc_list = [
+            i
+            for i in feature.attributes["Dbxref"]
+            if "HGNC" in i
+        ]
+
+        if hgnc_list:
+            hgnc_id = hgnc_list[0].split(":", 1)[-1]
+        else:
+            hgnc_id = "None provided"
+
+        # Extract MANE tag (MANE Select / MANE Plus Clinical) and transcript ID
+        mane_tag = feature.attributes["tag"][0]
+        transcript_id = feature.attributes["transcript_id"][0]
+
+        # Add unique transcript IDs and MANE status to MANE data dict
+        if hgnc_id in mane_data.keys():
+            if transcript_id not in mane_data[hgnc_id].keys():
+                mane_data[hgnc_id][transcript_id] = mane_tag
+        else:
+            mane_data[hgnc_id] = {transcript_id: mane_tag}
+
+    return mane_data
+
+
 def find_HGMD_transcript(session, meta, hgnc_id) -> str:
     """ Find the HGMD transcript using a HGNC id
 
@@ -115,7 +176,73 @@ def get_transcripts(hgnc_ids, exon_data) -> dict:
     return data
 
 
-def assign_transcripts(session, meta, mane_select_data, g2t_data) -> dict:
+def label_mane_transcripts(data, gene, mane_transcripts, tx, source):
+    '''
+    Label MANE transcripts
+    inputs:
+        data: dictionary of gene and transcripts
+        gene: HGNC ID of gene for query transcript
+        mane_transcripts: MANE transcript for gene (can be list or dictionary)
+        depending on source of MANE transcript data
+        tx: query transcript
+        source: source of MANE transcript data, either "refseq_gff" or
+        "ensembl_csv"
+    outputs:
+        data: dictionary of gene and transcripts with HGMD labels
+    '''
+    tx_base, tx_version = tx.split(".")
+
+    if source == "refseq_gff":
+        mane_transcripts_keys = list(mane_transcripts.keys())
+
+        for mane_transcript in mane_transcripts_keys:
+            mane_base, mane_version = mane_transcript.split(".")
+
+            # Compare g2t transcript with MANE transcript and add
+            # 'clinical transcript' label if they match. Multiple
+            # clinical transcripts are possible as MANE can have
+            # both a Select and Plus Clinical for the same gene
+            if tx_base == mane_base:
+                mane_status = mane_transcripts[mane_transcript]
+                if "clinical_transcript" in data[gene]:
+                    data[gene]["clinical_transcript"].append(
+                        [tx, mane_status]
+                    )
+                else:
+                    data[gene]["clinical_transcript"] = [[tx, mane_status]]
+
+    if source == "ensembl_csv":
+        mane_base, mane_version = mane_transcripts.split(".")
+
+        # compare transcripts without the versions
+        if tx_base == mane_base:
+            data[gene]["clinical_transcript"] = [[tx, "MANE"]]
+
+    return data
+
+
+def label_hgmd_transcripts(data, gene, hgmd_transcript, tx):
+    '''
+    Label HGMD transcripts if not previously labelled as MANE
+    inputs:
+        data: dictionary of gene and transcripts
+        gene: HGNC ID of gene for query transcript
+        hgmd_transcript: HGMD transcript for gene
+        tx: query transcript
+    outputs:
+        data: dictionary of gene and transcripts with HGMD labels
+    '''
+    tx_base, tx_version = tx.split(".")
+    hgmd_base, hgmd_version = hgmd_transcript.split(".")
+    if tx_base == hgmd_base:
+        if "clinical_transcript" not in data[gene]:
+            # This HGMD transcript has already been labelled as
+            # MANE, no need to duplicate it
+            data[gene]["clinical_transcript"] = [[tx, "HGMD"]]
+    return data
+
+
+def assign_transcripts(session, meta, mane_select_data, g2t_data, source) -> dict:
     """ Assign a clinical transcript status for all the genes in the g2t file
 
     Args:
@@ -130,40 +257,31 @@ def assign_transcripts(session, meta, mane_select_data, g2t_data) -> dict:
     """
 
     data = {}
-
+    print("There are " + str(len(list(g2t_data.values()))))
     for gene, transcripts in g2t_data.items():
         data.setdefault(gene, {})
         data[gene].setdefault("no_clinical_transcript", [])
 
         for tx in transcripts:
-            tx_base, tx_version = tx.split(".")
-
+            # Check if tx is MANE
             if gene in mane_select_data:
-                mane_transcript = mane_select_data[gene]
+                mane_transcripts = mane_select_data[gene]
+                data = label_mane_transcripts(
+                    data, gene, mane_transcripts, tx, source
+                    )
 
-                mane_base, mane_version = mane_transcript.split(".")
-
-                # compare transcripts without the versions
-                if tx_base == mane_base:
-                    data[gene]["clinical_transcript"] = [tx, "MANE"]
-                    continue
-
-            # if we already have a clinical transcript, that means that we
-            # already have a MANE transcript
-            if "clinical_transcript" in data[gene]:
-                data[gene]["no_clinical_transcript"].append([tx, "None"])
-                continue
-
+            # Check if tx is HGMD
             hgmd_transcript = find_HGMD_transcript(session, meta, gene)
-
             if hgmd_transcript:
-                hgmd_base, hgmd_version = hgmd_transcript.split(".")
+                data = label_hgmd_transcripts(data, gene, hgmd_transcript, tx)
 
-                if tx_base == hgmd_base:
-                    data[gene]["clinical_transcript"] = [tx, "HGMD"]
-                    continue
-
-            data[gene]["no_clinical_transcript"].append([tx, "None"])
+            # Check the query transcript is not already listed. If not,
+            # add it as a non-clinical transcript
+            if "clinical_transcript" in data[gene]:
+                if any(tx in sublist for sublist in data[gene]["clinical_transcript"]) is False:
+                    data[gene]["no_clinical_transcript"].append([tx, "None"])
+            else:
+                data[gene]["no_clinical_transcript"].append([tx, "None"])
 
     return data
 
@@ -181,13 +299,9 @@ def write_g2t(data, output_path):
     with open(f"{output_path}/g2t_file.tsv", "w") as f:
         for gene in data:
             for status, txs in data[gene].items():
-                if status == "clinical_transcript":
-                    tx, source = txs
+                for one_tx in txs:
+                    tx, source = one_tx
                     f.write(f"{gene}\t{tx}\t{status}\t{source}\n")
-                else:
-                    for tx in txs:
-                        tx, source = tx
-                        f.write(f"{gene}\t{tx}\t{status}\t{source}\n")
 
 
 def write_sql_queries(data, output_path):
@@ -210,9 +324,8 @@ def write_sql_queries(data, output_path):
             )
 
             for status, txs in data[gene].items():
-                if status == "clinical_transcript":
-                    tx, source = txs
-                    tx_base, tx_version = tx.split(".")
+                for tx in txs:
+                    tx_base, tx_version = tx[0].split(".")
                     f.write((
                         "INSERT INTO transcript (refseq_base, version, canonical) "
                         f"VALUES (\"{tx_base}\", \"{tx_version}\", 0);\n"
@@ -221,22 +334,8 @@ def write_sql_queries(data, output_path):
                     f.write((
                         "INSERT INTO genes2transcripts "
                         "(clinical_transcript, date, gene_id, reference_id, transcript_id) "
-                        f"VALUES (1, \"{get_date_for_db()}\", @gene_id, 1, @transcript_id);\n"
+                        f"VALUES (0, \"{get_date_for_db()}\", @gene_id, 1, @transcript_id);\n"
                     ))
-
-                else:
-                    for tx in txs:
-                        tx_base, tx_version = tx[0].split(".")
-                        f.write((
-                            "INSERT INTO transcript (refseq_base, version, canonical) "
-                            f"VALUES (\"{tx_base}\", \"{tx_version}\", 0);\n"
-                        ))
-                        f.write("SET @transcript_id = (SELECT LAST_INSERT_ID());\n")
-                        f.write((
-                            "INSERT INTO genes2transcripts "
-                            "(clinical_transcript, date, gene_id, reference_id, transcript_id) "
-                            f"VALUES (0, \"{get_date_for_db()}\", @gene_id, 1, @transcript_id);\n"
-                        ))
 
 
 def write_transcript_status(data, output_path):

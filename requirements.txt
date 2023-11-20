@@ -4,6 +4,7 @@ cffi==1.15.1
 charset-normalizer==3.1.0
 cryptography==40.0.2
 dxpy==0.348.0
+gffutils==0.12
 greenlet==2.0.2
 idna==3.4
 mysqlclient==2.1.1
