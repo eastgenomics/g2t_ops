@@ -257,7 +257,7 @@ def assign_transcripts(session, meta, mane_select_data, g2t_data, source) -> dic
     """
 
     data = {}
-    print("There are " + str(len(list(g2t_data.values()))))
+
     for gene, transcripts in g2t_data.items():
         data.setdefault(gene, {})
         data[gene].setdefault("no_clinical_transcript", [])

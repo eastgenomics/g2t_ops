@@ -6,7 +6,9 @@ from g2t_ops import convert_symbols, utils, transcript_assigner
 
 def main(args):
     output_path = utils.create_output_folder(args["output_folder"])
-    hgnc_dump = utils.parse_tsv(args["hgnc_dump"])
+
+    if args["hgnc_dump"]:
+        hgnc_dump = utils.parse_tsv(args["hgnc_dump"])
 
     if args["command"] == "convert_symbols":
         if args["symbols"]:
@@ -73,7 +75,7 @@ if __name__ == "__main__":
         help="Output folder in which to create the output files"
     )
     parser.add_argument(
-        "-hgnc_dump", "--hgnc_dump", required=True,
+        "-hgnc_dump", "--hgnc_dump", required=False,
         help="Path to HGNC dump downloaded from genenames.org"
     )
 

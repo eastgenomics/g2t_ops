@@ -4,8 +4,8 @@
 
 To run this code, you need to have:
 
-- A HGNC dump downloaded from https://www.genenames.org/download/custom/ (default columns)
-- A MANE Select file downloaded from http://tark.ensembl.org/web/mane_GRCh37_list/ (for build 37), or a MANE Select file from https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/ (for build 38)
+- A MANE Select file downloaded from Ensembl http://tark.ensembl.org/web/mane_GRCh37_list/ (for build 37), or a MANE Select file from RefSeq https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/ (for build 38)
+- A HGNC dump downloaded from https://www.genenames.org/download/custom/ (default columns). This is not needed if a RefSeq MANE gff is being used, because the HGNC IDs are included in the gff.
 - A local HGMD database
 
 DNAnexus has some HGMD dumps in dev projects. To setup the HGMD database:
@@ -70,8 +70,8 @@ python main.py --hgnc_dump ${hgnc_dump} assign_transcripts -mane ${Ensembl_MANE_
 python main.py --hgnc_dump ${hgnc_dump} assign_transcripts -mane ${Ensembl_MANE_Select_file} -hgmd ${database_name} ${database_usr} ${database_pwd} -hgnc_file ${hgnc_file}
 
 # for build 38, RefSeq MANE gff
-python main.py --hgnc_dump ${hgnc_dump} assign_transcripts --mane_gff ${MANE_RefSeq_gff} -hgmd ${database_name} ${database_usr} ${database_pwd} -hgnc_ids ${hgnc_id} ${hgnc_id} ...
-python main.py --hgnc_dump ${hgnc_dump} assign_transcripts --mane_gff ${MANE_RefSeq_gff} -hgmd ${database_name} ${database_usr} ${database_pwd} -hgnc_file ${hgnc_file}
+python main.py assign_transcripts --mane_gff ${MANE_RefSeq_gff} -hgmd ${database_name} ${database_usr} ${database_pwd} -hgnc_ids ${hgnc_id} ${hgnc_id} ...
+python main.py assign_transcripts --mane_gff ${MANE_RefSeq_gff} -hgmd ${database_name} ${database_usr} ${database_pwd} -hgnc_file ${hgnc_file}
 ```
 
 By default, the output created by this script will be located `./YYMMDD_results`. If that folder already exists, a new folder will be created with an number to differentiate folders.
